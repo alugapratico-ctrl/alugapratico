@@ -23,7 +23,7 @@ function Calendario() {
   const first = new Date(Date.UTC(ym.y, ym.m, 1)).getUTCDay();
   const days = new Date(Date.UTC(ym.y, ym.m + 1, 0)).getUTCDate();
   const iso = (d: number) => `${ym.y}-${pad(ym.m + 1)}-${pad(d)}`;
-  const on = (date: string) => rentals.filter((r) => r.status !== "finalizada" && r.start <= date && r.end >= date);
+  const on = (date: string) => rentals.filter((r) => r.status !== "finalizada" && r.status !== "cancelada" && r.start <= date && r.end >= date);
   const move = (n: number) => setYm(({ y, m }) => { const t = m + n; return { y: y + Math.floor(t / 12), m: ((t % 12) + 12) % 12 }; });
   const selected = on(sel);
 
@@ -35,23 +35,23 @@ function Calendario() {
           <span key={k} className="flex items-center gap-2 text-base font-semibold text-foreground"><span className={cn("h-4 w-4 rounded-full", STATUS_INFO[k].dot)} />{STATUS_INFO[k].label}</span>
         ))}
       </div>
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-        <Panel>
-          <div className="mb-4 flex items-center justify-between">
-            <Button variant="outline" size="lg" className="h-12" onClick={() => move(-1)}><ChevronLeft className="h-5 w-5" /> Anterior</Button>
-            <h2 className="text-xl font-bold text-foreground">{MONTHS[ym.m]} {ym.y}</h2>
-            <Button variant="outline" size="lg" className="h-12" onClick={() => move(1)}>Próximo <ChevronRight className="h-5 w-5" /></Button>
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <Panel className="min-w-0 p-3 sm:p-6">
+          <div className="mb-4 grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+            <Button variant="outline" size="lg" className="h-12 px-3 sm:px-4" aria-label="Mês anterior" onClick={() => move(-1)}><ChevronLeft className="h-5 w-5" /><span className="hidden sm:inline">Anterior</span></Button>
+            <h2 className="truncate text-center text-lg font-bold text-foreground sm:text-xl">{MONTHS[ym.m]} {ym.y}</h2>
+            <Button variant="outline" size="lg" className="h-12 px-3 sm:px-4" aria-label="Próximo mês" onClick={() => move(1)}><span className="hidden sm:inline">Próximo</span><ChevronRight className="h-5 w-5" /></Button>
           </div>
-          <div className="grid grid-cols-7 gap-1.5 text-center">
-            {WEEK.map((w) => <div key={w} className="py-2 text-sm font-bold text-muted-foreground">{w}</div>)}
+          <div className="grid grid-cols-7 gap-1 text-center sm:gap-1.5">
+            {WEEK.map((w) => <div key={w} className="min-w-0 py-2 text-xs font-bold sm:text-sm text-muted-foreground">{w}</div>)}
             {Array.from({ length: first }).map((_, i) => <div key={`e${i}`} />)}
             {Array.from({ length: days }).map((_, i) => {
               const d = iso(i + 1);
               const items = on(d);
               return (
-                <button key={d} onClick={() => setSel(d)} className={cn("flex min-h-16 flex-col items-center gap-1 rounded-xl border p-1.5 sm:min-h-20", sel === d ? "border-primary bg-accent" : "border-border bg-card hover:bg-muted", d === TODAY && "ring-2 ring-primary")}>
+                <button key={d} onClick={() => setSel(d)} className={cn("flex min-h-14 min-w-0 flex-col items-center gap-1 rounded-lg border p-1 sm:min-h-20 sm:rounded-xl sm:p-1.5", sel === d ? "border-primary bg-accent" : "border-border bg-card hover:bg-muted", d === TODAY && "ring-2 ring-primary")}>
                   <span className="text-base font-bold text-foreground">{i + 1}</span>
-                  <span className="flex flex-wrap justify-center gap-1">{items.slice(0, 4).map((r) => <span key={r.id} className={cn("h-2.5 w-2.5 rounded-full", STATUS_INFO[r.status].dot)} />)}</span>
+                  <span className="flex flex-wrap justify-center gap-0.5 sm:gap-1">{items.slice(0, 4).map((r) => <span key={r.id} className={cn("h-2 w-2 rounded-full sm:h-2.5 sm:w-2.5", STATUS_INFO[r.status].dot)} />)}</span>
                 </button>
               );
             })}
@@ -63,7 +63,7 @@ function Calendario() {
               {selected.map((r) => (
                 <li key={r.id} className="rounded-xl border border-border p-4">
                   <span className={cn("inline-block rounded-full px-3 py-0.5 text-sm font-bold", STATUS_INFO[r.status].className)}>{STATUS_INFO[r.status].label}</span>
-                  <p className="mt-2 font-bold text-foreground">{products.find((p) => p.id === r.productId)?.name}</p>
+                  <p className="mt-2 break-words font-bold text-foreground">{products.find((p) => p.id === r.productId)?.name}{r.quantity > 1 ? ` · ${r.quantity} un.` : ""}</p>
                   <p className="text-muted-foreground">{clients.find((c) => c.id === r.clientId)?.name}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{r.end === sel ? "Devolução hoje" : r.start === sel ? "Retirada hoje" : "Em uso"} · {brl(r.total)}</p>
                 </li>

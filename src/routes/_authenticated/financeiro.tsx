@@ -13,7 +13,7 @@ export const Route = createFileRoute("/_authenticated/financeiro")({
 function Financeiro() {
   const { rentals, clients, products } = useStore();
   const received = rentals.filter((r) => r.paid).reduce((s, r) => s + r.total, 0);
-  const pending = rentals.filter((r) => !r.paid).reduce((s, r) => s + r.total, 0);
+  const pending = rentals.filter((r) => !r.paid && r.status !== "cancelada").reduce((s, r) => s + r.total, 0);
   const month = rentals.filter((r) => r.paid && r.start.startsWith(TODAY.slice(0, 7))).reduce((s, r) => s + r.total, 0);
   const MONTHLY = monthlySummary(rentals);
 
