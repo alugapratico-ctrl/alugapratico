@@ -19,4 +19,5 @@
 - [ ] Envio automático de e-mail pelo sistema — aguarda domínio de e-mail próprio
 - [x] Modo escuro (claro / escuro / automático)
 - [x] Central de alertas, sino de notificações e preferências
+- [x] Beta: estoque por período, cancelamento, arquivamento, layout mobile
 - [ ] Notificações no celular com o app fechado (push) — não implementado

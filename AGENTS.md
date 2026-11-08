@@ -43,3 +43,6 @@ use the editor.
 - Theme mode lives in localStorage and is applied by the `.dark` class (boot script in `__root.tsx`); colors only come from tokens in `src/styles.css`.
 - The support WhatsApp number comes only from `VITE_SUPPORT_WHATSAPP`; with no valid number the floating button is hidden.
 - Admin access is the `admin` role in `public.user_roles`, checked by `has_role()`; admin data comes only from SECURITY DEFINER functions (`admin_overview`, `admin_set_role`) that refuse non-admins and write to `admin_audit`, so the `/admin` route guard is UI-only.
+- Rental stock rules are enforced in the database (`check_rental_availability` trigger locks the product row, sums overlapping active rentals' `quantity`, rejects unavailable/archived products and reopening cancelled rentals); `src/lib/availability.ts` mirrors them only for UI hints. Business-rule errors use SQLSTATE `P0001` with a user-facing Portuguese message that `dataErrorMessage` shows as-is.
+- `products.available` is the owner's manual available/unavailable flag, not "currently rented"; current stock comes from dated rentals.
+- Rentals are never deleted (no DELETE grant/policy): they are cancelled. Products/clients with history cannot be deleted (guard triggers) and are archived via `archived_at` instead.
