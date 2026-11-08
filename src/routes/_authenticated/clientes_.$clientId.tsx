@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { StatusPill } from "@/components/AppShell";
 import { FinesSection, rentalLabel } from "@/components/Fines";
 import { brl, STATUS_INFO, useStore } from "@/lib/store";
+import { RemoveOrArchive } from "@/components/RemoveOrArchive";
+import { useNavigate } from "@tanstack/react-router";
 import { seo } from "@/lib/seo";
 
 export const Route = createFileRoute("/_authenticated/clientes_/$clientId")({
@@ -19,7 +21,8 @@ export const Route = createFileRoute("/_authenticated/clientes_/$clientId")({
 
 function ClienteDetalhes() {
   const { clientId } = Route.useParams();
-  const { clients, rentals, products } = useStore();
+  const { clients, rentals, products, fines, deleteClient, setClientArchived } = useStore();
+  const navigate = useNavigate();
   const client = clients.find((c) => c.id === clientId);
   const [msg, setMsg] = useState<{ rentalId?: string } | null>(null);
   const history = useQuery({
@@ -53,7 +56,14 @@ function ClienteDetalhes() {
           <div className="min-w-0">
             <h1 className="break-words text-3xl font-extrabold text-foreground">{client.name}</h1>
             {client.notes && <p className="text-base text-muted-foreground">{client.notes}</p>}
+            {client.archived && <StatusPill label="Desativado" className="mt-1 bg-muted text-muted-foreground" />}
           </div>
+        </div>
+        <div className="mt-4">
+          <RemoveOrArchive name={client.name} archived={client.archived} archiveLabel="Desativar" className="h-12 text-base"
+            hasHistory={rentals.some((r) => r.clientId === client.id) || fines.some((f) => f.clientId === client.id) || (history.data?.length ?? 0) > 0}
+            onDelete={async () => { await deleteClient(client.id); void navigate({ to: "/clientes" }); }}
+            onArchive={() => setClientArchived(client.id, true)} onRestore={() => setClientArchived(client.id, false)} />
         </div>
         <div className="mt-4 flex flex-col gap-2 text-base text-foreground sm:flex-row sm:gap-6">
           <span className="flex items-center gap-2"><Phone className="h-4 w-4 text-muted-foreground" />{client.phone}</span>
