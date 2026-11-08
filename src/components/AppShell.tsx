@@ -172,8 +172,8 @@ function AdminLink({ className, onClick }: { className: string; onClick?: () => 
 export function PageHeader({ title, subtitle, action }: { title: string; subtitle: string; action?: ReactNode }) {
   return (
     <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div>
-        <h1 className="text-3xl font-extrabold text-foreground sm:text-4xl">{title}</h1>
+      <div className="min-w-0">
+        <h1 className="break-words text-3xl font-extrabold text-foreground sm:text-4xl">{title}</h1>
         <p className="mt-2 text-lg text-muted-foreground">{subtitle}</p>
       </div>
       {action}
