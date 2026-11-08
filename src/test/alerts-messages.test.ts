@@ -4,9 +4,9 @@ import { whatsappNumber, buildMessage } from "@/lib/messages";
 import { supportLink } from "@/lib/support";
 import type { Client, Product, Rental } from "@/lib/store";
 
-const clients: Client[] = [{ id: "c1", name: "Maria Souza", phone: "(11) 98888-7777" }];
-const products: Product[] = [{ id: "p1", name: "Furadeira", category: "Outros", description: "", price: 50, billing: "diária", details: {}, available: false }];
-const r = (o: Partial<Rental>): Rental => ({ id: "r1", clientId: "c1", productId: "p1", start: "2026-11-01", end: "2026-11-10", total: 100, status: "andamento", paid: true, ...o });
+const clients: Client[] = [{ id: "c1", name: "Maria Souza", phone: "(11) 98888-7777", archived: false }];
+const products: Product[] = [{ id: "p1", name: "Furadeira", category: "Outros", description: "", price: 50, billing: "diária", details: {}, available: false, quantity: 1, archived: false }];
+const r = (o: Partial<Rental>): Rental => ({ id: "r1", clientId: "c1", productId: "p1", start: "2026-11-01", end: "2026-11-10", total: 100, status: "andamento", paid: true, quantity: 1, ...o });
 const prefs = { retiradasDevolucoes: true, pagamentos: true, antecedencia: 1 };
 const TODAY = "2026-11-06";
 
