@@ -1,0 +1,9 @@
+{"source":"code-archive","artifact":"new-home-for-projects-main.zip","capabilities":[
+{"capability":"code","source":"TanStack Start app, 18 pages","outcome":"migrate","status":"done","next_action":"Verify in browser"},
+{"capability":"schema","source":"3 SQL migrations (10 tables, roles, admin functions, storage policies)","outcome":"migrate","status":"verified","next_action":""},
+{"capability":"records","source":"no export attached","outcome":"migrate","status":"pending","next_action":"User attaches per-table CSV/JSON exports"},
+{"capability":"auth_identities","source":"email/password + Google","outcome":"migrate","status":"pending","next_action":"Needs user export (ids, emails); users verify email and set new password on first visit"},
+{"capability":"authorization","source":"per-user RLS + admin role","outcome":"migrate","status":"done","next_action":"Re-assign admin role after first admin signs up"},
+{"capability":"uploaded_file_bytes","source":"private user-files bucket","outcome":"migrate","status":"pending","next_action":"Bucket recreated; old files need export"},
+{"capability":"secrets","source":"VITE_SUPPORT_WHATSAPP (optional, public)","outcome":"preserve","status":"pending","next_action":"Provide support WhatsApp number when available"},
+{"capability":"cutover","source":"old deployment","outcome":"publish_on_lovable","status":"pending","next_action":"User publishes"}]}
