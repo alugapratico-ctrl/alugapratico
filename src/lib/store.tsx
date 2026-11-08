@@ -41,8 +41,10 @@ export type Product = {
   details: ProductDetails;
   available: boolean;
   maintenance?: boolean | undefined;
+  quantity: number;
+  archived: boolean;
 };
-export type ProductInput = Pick<Product, "name" | "category" | "description" | "price" | "billing" | "available" | "details">;
+export type ProductInput = Pick<Product, "name" | "category" | "description" | "price" | "billing" | "available" | "details" | "quantity">;
 export type ProductRecordKind = "expense" | "maintenance" | "incident";
 export type ProductRecord = {
   id: string;
@@ -56,8 +58,8 @@ export type ProductRecord = {
   notes?: string | undefined;
   attachments?: string[] | undefined;
 };
-export type Client = { id: string; name: string; phone: string; email?: string | undefined; notes?: string | undefined };
-export type RentalStatus = "andamento" | "aguardando" | "finalizada" | "atrasada";
+export type Client = { id: string; name: string; phone: string; email?: string | undefined; notes?: string | undefined; archived: boolean };
+export type RentalStatus = "andamento" | "aguardando" | "finalizada" | "atrasada" | "cancelada";
 export type Rental = {
   id: string;
   clientId: string;
@@ -67,6 +69,7 @@ export type Rental = {
   total: number;
   status: RentalStatus;
   paid: boolean;
+  quantity: number;
 };
 export type Activity = { id: string; text: string; when: string; kind: "produto" | "cliente" | "locacao" | "pagamento" };
 
@@ -77,6 +80,7 @@ export const STATUS_INFO: Record<RentalStatus, { label: string; className: strin
   aguardando: { label: "Aguardando retirada", className: "bg-warning-soft text-warning", dot: "bg-warning" },
   finalizada: { label: "Finalizada", className: "bg-success-soft text-success", dot: "bg-success" },
   atrasada: { label: "Atrasada", className: "bg-danger-soft text-destructive", dot: "bg-destructive" },
+  cancelada: { label: "Cancelada", className: "bg-muted text-muted-foreground", dot: "bg-muted-foreground" },
 };
 
 export const BUCKET = "user-files";
@@ -97,6 +101,8 @@ export function relativeTime(iso: string, now = Date.now()) {
 
 /** Mensagem clara para falhas ao salvar ou carregar dados. */
 export function dataErrorMessage(error: { message?: string; code?: string } | null | undefined) {
+  // Regras de negócio do banco (estoque, cancelamento, exclusão) já vêm com mensagem pronta.
+  if (error?.code === "P0001" && error.message) return error.message;
   const msg = (error?.message ?? "").toLowerCase();
   if ((typeof navigator !== "undefined" && !navigator.onLine) || msg.includes("failed to fetch") || msg.includes("load failed"))
     return "Sem conexão com a internet. Verifique sua conexão e tente novamente.";
@@ -135,6 +141,8 @@ function mapProduct(row: Tables<"products">, urls: Map<string, string>): Product
     details: row.details && typeof row.details === "object" && !Array.isArray(row.details) ? (row.details as ProductDetails) : {},
     available: row.available,
     maintenance: row.maintenance,
+    quantity: row.quantity,
+    archived: !!row.archived_at,
   };
 }
 
@@ -150,6 +158,7 @@ function mapRental(row: Tables<"rentals">): Rental {
     // Locação em andamento que passou da data de devolução aparece como atrasada.
     status: status === "andamento" && row.end_date < TODAY ? "atrasada" : status,
     paid: row.paid,
+    quantity: row.quantity,
   };
 }
 
@@ -176,7 +185,7 @@ async function fetchAll(userId: string) {
 
   return {
     products: (p.data ?? []).map((row) => mapProduct(row, urls)),
-    clients: (c.data ?? []).map((row): Client => ({ id: row.id, name: row.name, phone: row.phone, email: row.email ?? undefined, notes: row.notes ?? undefined })),
+    clients: (c.data ?? []).map((row): Client => ({ id: row.id, name: row.name, phone: row.phone, email: row.email ?? undefined, notes: row.notes ?? undefined, archived: !!row.archived_at })),
     rentals: (r.data ?? []).map(mapRental),
     productRecords: (pr.data ?? []).map((row): ProductRecord => ({
       id: row.id, productId: row.product_id, kind: row.kind as ProductRecordKind, category: row.category, description: row.description,
@@ -223,8 +232,14 @@ type Store = Data & {
   updateProduct: (id: string, p: ProductInput, photoFile?: File) => Promise<void>;
   addProductRecord: (record: Omit<ProductRecord, "id">) => Promise<void>;
   finishProductMaintenance: (productId: string) => Promise<void>;
-  addClient: (c: Omit<Client, "id">) => Promise<void>;
+  deleteProduct: (id: string) => Promise<void>;
+  setProductArchived: (id: string, archived: boolean) => Promise<void>;
+  addClient: (c: Omit<Client, "id" | "archived">) => Promise<void>;
+  deleteClient: (id: string) => Promise<void>;
+  setClientArchived: (id: string, archived: boolean) => Promise<void>;
   addRental: (r: Omit<Rental, "id">) => Promise<void>;
+  updateRental: (id: string, r: Pick<Rental, "clientId" | "productId" | "start" | "end" | "total" | "quantity">) => Promise<void>;
+  cancelRental: (id: string) => Promise<void>;
   finishRental: (id: string) => Promise<void>;
   addFine: (f: FineInput, file?: File) => Promise<void>;
   updateFine: (id: string, f: FineInput, opts?: { file?: File | undefined; removeAttachment?: boolean }) => Promise<void>;
@@ -270,6 +285,7 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     price: p.price,
     billing: p.billing,
     available: p.available,
+    quantity: p.quantity,
     details: p.details as Json,
   });
   const fineRow = (f: FineInput) => ({
@@ -319,6 +335,29 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
       await log("Manutenção concluída; produto disponível novamente", "produto");
       await refresh();
     },
+    deleteProduct: async (id) => {
+      const old = query.data.products.find((x) => x.id === id);
+      check(await supabase.from("products").delete().eq("id", id).eq("user_id", userId));
+      if (old?.photoPath) await supabase.storage.from(BUCKET).remove([old.photoPath]);
+      await log(`Produto excluído: ${old?.name ?? "produto"}`, "produto");
+      await refresh();
+    },
+    setProductArchived: async (id, archived) => {
+      check(await supabase.from("products").update({ archived_at: archived ? new Date().toISOString() : null }).eq("id", id).eq("user_id", userId));
+      const name = query.data.products.find((x) => x.id === id)?.name ?? "produto";
+      await log(`Produto ${archived ? "arquivado" : "reativado"}: ${name}`, "produto");
+      await refresh();
+    },
+    deleteClient: async (id) => {
+      check(await supabase.from("clients").delete().eq("id", id).eq("user_id", userId));
+      await log(`Cliente excluído: ${clientName(id)}`, "cliente");
+      await refresh();
+    },
+    setClientArchived: async (id, archived) => {
+      check(await supabase.from("clients").update({ archived_at: archived ? new Date().toISOString() : null }).eq("id", id).eq("user_id", userId));
+      await log(`Cliente ${archived ? "desativado" : "reativado"}: ${clientName(id)}`, "cliente");
+      await refresh();
+    },
     addClient: async (c) => {
       check(await supabase.from("clients").insert({ user_id: userId, name: c.name.trim(), phone: c.phone.trim(), email: c.email?.trim() || null, notes: c.notes?.trim() || null }));
       await log(`Cliente cadastrado: ${c.name}`, "cliente");
@@ -327,11 +366,26 @@ export function StoreProvider({ userId, children }: { userId: string; children: 
     addRental: async (r) => {
       // A disponibilidade do produto é atualizada pelo próprio banco de dados.
       check(await supabase.from("rentals").insert({
-        user_id: userId, client_id: r.clientId, product_id: r.productId, start_date: r.start, end_date: r.end, total: r.total, status: r.status, paid: r.paid,
+        user_id: userId, client_id: r.clientId, product_id: r.productId, start_date: r.start, end_date: r.end, total: r.total, status: r.status, paid: r.paid, quantity: r.quantity,
       }));
       const prod = query.data.products.find((p) => p.id === r.productId);
       const cli = query.data.clients.find((c) => c.id === r.clientId);
       await log(`Nova locação: ${prod?.name ?? "produto"} para ${cli?.name ?? "cliente"}`, "locacao");
+      await refresh();
+    },
+    updateRental: async (id, r) => {
+      const old = query.data.rentals.find((x) => x.id === id);
+      const status = old && (old.status === "aguardando" || old.status === "andamento" || old.status === "atrasada")
+        ? (r.start > TODAY ? "aguardando" : "andamento") : undefined;
+      check(await supabase.from("rentals").update({
+        client_id: r.clientId, product_id: r.productId, start_date: r.start, end_date: r.end, total: r.total, quantity: r.quantity, ...(status ? { status } : {}),
+      }).eq("id", id).eq("user_id", userId));
+      await log("Uma locação foi editada", "locacao");
+      await refresh();
+    },
+    cancelRental: async (id) => {
+      check(await supabase.from("rentals").update({ status: "cancelada" }).eq("id", id).eq("user_id", userId));
+      await log("Uma locação foi cancelada e o estoque foi liberado", "locacao");
       await refresh();
     },
     finishRental: async (id) => {
