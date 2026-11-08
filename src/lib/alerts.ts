@@ -60,14 +60,14 @@ export function computeAlerts(
         else if (r.end > today && r.end <= limit) out.push({ ...base, key: `devolucao-proxima:${r.id}`, kind: "devolucao_proxima", group: "locacoes", priority: "info", title: "Devolução próxima", body: `${who} devolve ${what} em ${fmt(r.end)}.` });
       }
     }
-    if (prefs.pagamentos && !r.paid && r.status !== "finalizada") {
+    if (prefs.pagamentos && !r.paid && r.status !== "finalizada" && r.status !== "cancelada") {
       if (r.end < today) out.push({ ...base, key: `pagamento-vencido:${r.id}`, kind: "pagamento_vencido", group: "financeiro", priority: "urgente", title: "Pagamento vencido", body: `${who} · ${money(r.total)} · venceu em ${fmt(r.end)}.` });
       else if (r.end <= limit) out.push({ ...base, key: `pagamento-vencendo:${r.id}`, kind: "pagamento_vencendo", group: "financeiro", priority: "atencao", title: "Pagamento vence em breve", body: `${who} · ${money(r.total)} · vence em ${fmt(r.end)}.` });
     }
   }
 
   if (prefs.pagamentos) {
-    const open = data.rentals.filter((r) => !r.paid && r.status !== "finalizada");
+    const open = data.rentals.filter((r) => !r.paid && r.status !== "finalizada" && r.status !== "cancelada");
     if (open.length) {
       const total = open.reduce((s, r) => s + r.total, 0);
       out.push({ key: `aguardando-recebimento:${today}`, kind: "aguardando_recebimento", group: "financeiro", priority: "info", title: "Valores aguardando recebimento", body: `${money(total)} em ${open.length} locação(ões) sem pagamento registrado.` });
@@ -75,7 +75,7 @@ export function computeAlerts(
   }
 
   // Conflitos: duas locações não finalizadas do mesmo produto com datas que se cruzam.
-  const live = data.rentals.filter((r) => r.status !== "finalizada");
+  const live = data.rentals.filter((r) => r.status !== "finalizada" && r.status !== "cancelada");
   for (let i = 0; i < live.length; i++) {
     for (let j = i + 1; j < live.length; j++) {
       const a = live[i]!, b = live[j]!;

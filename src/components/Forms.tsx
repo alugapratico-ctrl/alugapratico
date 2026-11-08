@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
-import { CATEGORIES, brl, calcTotal, useStore, TODAY, type Billing, type Product } from "@/lib/store";
+import { CATEGORIES, brl, calcTotal, useStore, TODAY, type Billing, type Product, type Rental } from "@/lib/store";
+import { availableInPeriod, peakCommitted } from "@/lib/availability";
 import { cn } from "@/lib/utils";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { SpecificFieldsSection } from "@/components/ProductDetails";
@@ -73,8 +74,8 @@ function SubmitButton({ busy, children }: { busy: boolean; children: ReactNode }
 const EMPTY_DETAILS: DetailForm = { values: {}, custom: [] };
 
 export function ProductForm({ open, onOpenChange, product }: { open: boolean; onOpenChange: (o: boolean) => void; product?: Product | undefined }) {
-  const { addProduct, updateProduct } = useStore();
-  const empty = { name: "", category: CATEGORIES[0] as string, description: "", price: "", billing: "diária" as Billing, available: "sim" as "sim" | "nao", photo: undefined as string | undefined };
+  const { addProduct, updateProduct, rentals } = useStore();
+  const empty = { quantity: "1", name: "", category: CATEGORIES[0] as string, description: "", price: "", billing: "diária" as Billing, available: "sim" as "sim" | "nao", photo: undefined as string | undefined };
   const [f, setF] = useState(empty);
   // Informações específicas guardadas por categoria: trocar e voltar a categoria não perde o que foi digitado.
   const [detailForms, setDetailForms] = useState<Record<string, DetailForm>>({});
@@ -85,7 +86,7 @@ export function ProductForm({ open, onOpenChange, product }: { open: boolean; on
   useEffect(() => {
     if (open) {
       setFormKey((k) => k + 1);
-      setF(product ? { name: product.name, category: product.category, description: product.description, billing: product.billing, photo: product.photo, price: String(product.price), available: product.available ? "sim" : "nao" } : empty);
+      setF(product ? { quantity: String(product.quantity), name: product.name, category: product.category, description: product.description, billing: product.billing, photo: product.photo, price: String(product.price), available: product.available ? "sim" : "nao" } : empty);
       setDetailForms(product ? { [product.category]: detailsToForm(product.details) } : {});
       setPendingCategory(null);
       setPhotoFile(undefined);
@@ -107,9 +108,13 @@ export function ProductForm({ open, onOpenChange, product }: { open: boolean; on
     if (!f.name.trim() || !f.price) { toast.error("Preencha o nome e o valor do produto."); return; }
     if (!Number.isFinite(price) || price < 0) { toast.error("Digite um valor válido para a locação."); return; }
     if (f.name.trim().length > 150) { toast.error("O nome pode ter no máximo 150 caracteres."); return; }
+    const quantity = Number(f.quantity);
+    if (!Number.isInteger(quantity) || quantity < 1) { toast.error("A quantidade em estoque precisa ser um número inteiro de 1 ou mais."); return; }
+    const committed = product ? peakCommitted(rentals, product.id, TODAY) : 0;
+    if (quantity < committed) { toast.error(`Não é possível reduzir para ${quantity}: já há ${committed} unidade(s) reservada(s) no mesmo período.`); return; }
     const built = buildDetails(f.category, detailForm);
     if (built.error) { toast.error(built.error); return; }
-    const data = { name: f.name, category: f.category, description: f.description, price, billing: f.billing, available: f.available === "sim", details: built.details };
+    const data = { name: f.name, category: f.category, description: f.description, price, billing: f.billing, available: f.available === "sim", quantity, details: built.details };
     setBusy(true);
     try {
       if (product) { await updateProduct(product.id, data, photoFile); ok("Produto atualizado com sucesso!"); }
@@ -131,6 +136,9 @@ export function ProductForm({ open, onOpenChange, product }: { open: boolean; on
         </Field>
         <Field label="Descrição" hint="Conte detalhes importantes, como tamanho ou estado."><Textarea className="text-base" placeholder="Ex.: Acompanha 2 baterias e maleta" value={f.description} onChange={(e) => setF({ ...f, description: e.target.value })} /></Field>
         <Field label="Valor da locação (R$)"><Input className={inputCls} type="number" min="0" placeholder="Ex.: 50" value={f.price} onChange={(e) => setF({ ...f, price: e.target.value })} /></Field>
+        <Field label="Quantidade em estoque" hint={product ? `Mínimo agora: ${Math.max(1, peakCommitted(rentals, product.id, TODAY))} (unidades já reservadas ao mesmo tempo).` : "Quantas unidades iguais deste item você tem."}>
+          <Input className={inputCls} type="number" min="1" step="1" inputMode="numeric" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} />
+        </Field>
         <Field label="Tipo de cobrança">
           <Choice value={f.billing} onChange={(v) => setF({ ...f, billing: v })} options={[{ v: "diária", l: "Diária" }, { v: "semanal", l: "Semanal" }, { v: "mensal", l: "Mensal" }]} />
         </Field>
@@ -206,55 +214,76 @@ export function ClientForm({ open, onOpenChange }: { open: boolean; onOpenChange
   );
 }
 
-export function RentalForm({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { clients, products, addRental } = useStore();
-  const [f, setF] = useState({ clientId: "", productId: "", start: TODAY, end: "", total: "" });
+export function RentalForm({ open, onOpenChange, rental }: { open: boolean; onOpenChange: (o: boolean) => void; rental?: Rental | undefined }) {
+  const { clients, products, rentals, addRental, updateRental } = useStore();
+  const blank = { clientId: "", productId: "", start: TODAY, end: "", total: "", quantity: "1" };
+  const [f, setF] = useState(blank);
   const [busy, setBusy] = useState(false);
-  useEffect(() => { if (open) setF({ clientId: "", productId: "", start: TODAY, end: "", total: "" }); }, [open]);
+  useEffect(() => {
+    if (open) setF(rental ? { clientId: rental.clientId, productId: rental.productId, start: rental.start, end: rental.end, total: String(rental.total), quantity: String(rental.quantity) } : blank);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, rental]);
   const prod = products.find((p) => p.id === f.productId);
-  const suggested = prod && f.start && f.end && f.end >= f.start ? calcTotal(prod.price, prod.billing, f.start, f.end) : null;
+  const qty = Number(f.quantity) || 0;
+  const suggested = prod && f.start && f.end && f.end >= f.start ? calcTotal(prod.price, prod.billing, f.start, f.end) * Math.max(1, qty) : null;
+  const free = prod && f.start && f.end && f.end >= f.start ? availableInPeriod(prod.quantity, rentals, prod.id, f.start, f.end, rental?.id) : null;
+  const blocked = prod ? (prod.archived ? "Este produto está arquivado." : !prod.available || prod.maintenance ? "Este produto está marcado como indisponível." : null) : null;
+  // Produtos/clientes arquivados não aparecem para novas locações (mas continuam na locação que já os usa).
+  const productOptions = products.filter((p) => !p.archived || p.id === rental?.productId);
+  const clientOptions = clients.filter((c) => !c.archived || c.id === rental?.clientId);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (busy) return;
     if (!f.clientId || !f.productId || !f.end) { toast.error("Escolha o cliente, o produto e as datas."); return; }
     if (f.end < f.start) { toast.error("A devolução precisa ser depois da retirada."); return; }
+    if (!Number.isInteger(qty) || qty < 1) { toast.error("A quantidade precisa ser um número inteiro de 1 ou mais."); return; }
+    if (blocked) { toast.error(blocked + " Não é possível reservar."); return; }
+    if (free !== null && qty > free) { toast.error(`Estoque insuficiente neste período: disponível ${free} de ${prod?.quantity}.`); return; }
     const total = Number(f.total) || suggested || 0;
     setBusy(true);
     try {
-      await addRental({ clientId: f.clientId, productId: f.productId, start: f.start, end: f.end, total, status: f.start > TODAY ? "aguardando" : "andamento", paid: false });
-      ok("Locação registrada com sucesso!");
+      if (rental) {
+        await updateRental(rental.id, { clientId: f.clientId, productId: f.productId, start: f.start, end: f.end, total, quantity: qty });
+        ok("Locação atualizada com sucesso!");
+      } else {
+        await addRental({ clientId: f.clientId, productId: f.productId, start: f.start, end: f.end, total, quantity: qty, status: f.start > TODAY ? "aguardando" : "andamento", paid: false });
+        ok("Locação registrada com sucesso!");
+      }
       onOpenChange(false);
     } catch (err) { fail(err); }
     setBusy(false);
   };
 
   return (
-    <Shell open={open} onOpenChange={onOpenChange} title="Registrar locação" desc="Escolha quem vai alugar, o quê e por quanto tempo.">
+    <Shell open={open} onOpenChange={onOpenChange} title={rental ? "Editar locação" : "Registrar locação"} desc="Escolha quem vai alugar, o quê e por quanto tempo.">
       <form onSubmit={submit} className="space-y-5">
         <Field label="1. Cliente">
           <select className={selectCls} value={f.clientId} onChange={(e) => setF({ ...f, clientId: e.target.value })}>
             <option value="">Selecione o cliente</option>
-            {clients.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {clientOptions.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
         </Field>
         <Field label="2. Produto">
           <select className={selectCls} value={f.productId} onChange={(e) => setF({ ...f, productId: e.target.value })}>
             <option value="">Selecione o produto</option>
-            {products.map((p) => <option key={p.id} value={p.id}>{p.name}{p.available ? "" : " (alugado)"}</option>)}
+            {productOptions.map((p) => <option key={p.id} value={p.id}>{p.name}{p.archived ? " (arquivado)" : !p.available || p.maintenance ? " (indisponível)" : ""}</option>)}
           </select>
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2">
           <Field label="3. Retirada"><Input className={inputCls} type="date" value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} /></Field>
           <Field label="4. Devolução"><Input className={inputCls} type="date" value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} /></Field>
         </div>
-        <Field label="5. Valor total (R$)" hint={suggested ? `Valor sugerido pelo sistema: ${brl(suggested)}` : "Escolha produto e datas para ver o valor sugerido."}>
+        <Field label="5. Quantidade" hint={blocked ?? (free !== null && prod ? `Disponível neste período: ${free} de ${prod.quantity}` : "Escolha produto e datas para ver o estoque disponível.")}>
+          <Input className={inputCls} type="number" min="1" step="1" inputMode="numeric" value={f.quantity} onChange={(e) => setF({ ...f, quantity: e.target.value })} />
+        </Field>
+        <Field label="6. Valor total (R$)" hint={suggested ? `Valor sugerido pelo sistema: ${brl(suggested)}` : "Escolha produto e datas para ver o valor sugerido."}>
           <Input className={inputCls} type="number" min="0" placeholder={suggested ? String(suggested) : "Ex.: 300"} value={f.total} onChange={(e) => setF({ ...f, total: e.target.value })} />
         </Field>
         {(clients.length === 0 || products.length === 0) && (
           <p className="rounded-xl bg-warning-soft p-3 text-sm font-semibold text-warning">Antes de registrar uma locação, cadastre pelo menos um cliente e um produto.</p>
         )}
-        <SubmitButton busy={busy}>Registrar locação</SubmitButton>
+        <SubmitButton busy={busy}>{rental ? "Salvar alterações" : "Registrar locação"}</SubmitButton>
       </form>
     </Shell>
   );

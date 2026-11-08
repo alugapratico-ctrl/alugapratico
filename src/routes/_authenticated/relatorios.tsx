@@ -11,7 +11,9 @@ export const Route = createFileRoute("/_authenticated/relatorios")({
 });
 
 function Relatorios() {
-  const { rentals, products, clients } = useStore();
+  const { rentals: allRentals, products, clients } = useStore();
+  // Locações canceladas ficam no histórico, mas não contam nos relatórios.
+  const rentals = allRentals.filter((r) => r.status !== "cancelada");
   const MONTHLY = monthlySummary(rentals);
   const top = products.map((p) => ({ p, n: rentals.filter((r) => r.productId === p.id).length })).filter((t) => t.n > 0).sort((a, b) => b.n - a.n).slice(0, 5);
   const max = Math.max(1, ...top.map((t) => t.n));

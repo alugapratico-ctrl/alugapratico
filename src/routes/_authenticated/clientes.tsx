@@ -14,7 +14,10 @@ export const Route = createFileRoute("/_authenticated/clientes")({
 });
 
 function Clientes() {
-  const { clients, rentals, fines } = useStore();
+  const { clients: allClients, rentals, fines } = useStore();
+  const [showArchived, setShowArchived] = useState(false);
+  const clients = allClients.filter((c) => c.archived === showArchived);
+  const archivedCount = allClients.filter((c) => c.archived).length;
   const pending = (id: string) => fines.filter((f) => f.clientId === id && f.status === "pendente").length;
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
@@ -24,11 +27,16 @@ function Clientes() {
   return (
     <>
       <PageHeader title="Clientes" subtitle="Quem aluga com você."
-        action={<Button size="lg" className="h-14 px-6 text-lg" onClick={() => setOpen(true)}><Plus className="h-5 w-5" /> Cadastrar cliente</Button>} />
+        action={<Button size="lg" className="h-14 w-full px-6 text-lg sm:w-auto" onClick={() => setOpen(true)}><Plus className="h-5 w-5" /> Cadastrar cliente</Button>} />
       <div className="relative mb-6">
         <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-muted-foreground" />
         <Input className="h-14 pl-12 text-base" placeholder="Procurar cliente pelo nome" value={q} onChange={(e) => setQ(e.target.value)} />
       </div>
+      {(archivedCount > 0 || showArchived) && (
+        <button onClick={() => setShowArchived(!showArchived)} className="mb-4 text-base font-semibold text-primary underline-offset-4 hover:underline">
+          {showArchived ? "← Voltar para clientes ativos" : `Ver clientes desativados (${archivedCount})`}
+        </button>
+      )}
       <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <div className="hidden grid-cols-[2fr_1.3fr_1.8fr_1fr] gap-4 bg-muted px-6 py-3 text-sm font-bold text-muted-foreground md:grid">
           <span>Nome</span><span>Telefone</span><span>E-mail</span><span className="text-right">Locações</span>
@@ -36,9 +44,9 @@ function Clientes() {
         <ul className="divide-y divide-border">
           {list.map((c) => (
             <li key={c.id} className="grid gap-2 px-5 py-4 md:grid-cols-[2fr_1.3fr_1.8fr_1fr] md:items-center md:gap-4 md:px-6">
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-base font-bold text-primary">{c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
-                <div>
+                <div className="min-w-0">
                   <Link to="/clientes/$clientId" params={{ clientId: c.id }} className="text-lg font-bold text-foreground underline-offset-4 hover:text-primary hover:underline">{c.name}</Link>
                   {c.notes && <p className="text-sm text-muted-foreground">{c.notes}</p>}
                   <Link to="/clientes/$clientId" params={{ clientId: c.id }} className="mt-1 flex items-center gap-1 text-sm font-semibold text-primary">

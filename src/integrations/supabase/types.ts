@@ -140,6 +140,7 @@ export type Database = {
       }
       clients: {
         Row: {
+          archived_at: string | null
           created_at: string
           email: string | null
           id: string
@@ -150,6 +151,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          archived_at?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -160,6 +162,7 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          archived_at?: string | null
           created_at?: string
           email?: string | null
           id?: string
@@ -320,6 +323,7 @@ export type Database = {
       products: {
         Row: {
           acquisition_value: number | null
+          archived_at: string | null
           available: boolean
           billing: string
           category: string
@@ -335,6 +339,7 @@ export type Database = {
           notes: string | null
           photo_path: string | null
           price: number
+          quantity: number
           updated_at: string
           user_id: string
           vehicle: Json | null
@@ -342,6 +347,7 @@ export type Database = {
         }
         Insert: {
           acquisition_value?: number | null
+          archived_at?: string | null
           available?: boolean
           billing: string
           category: string
@@ -357,6 +363,7 @@ export type Database = {
           notes?: string | null
           photo_path?: string | null
           price: number
+          quantity?: number
           updated_at?: string
           user_id?: string
           vehicle?: Json | null
@@ -364,6 +371,7 @@ export type Database = {
         }
         Update: {
           acquisition_value?: number | null
+          archived_at?: string | null
           available?: boolean
           billing?: string
           category?: string
@@ -379,6 +387,7 @@ export type Database = {
           notes?: string | null
           photo_path?: string | null
           price?: number
+          quantity?: number
           updated_at?: string
           user_id?: string
           vehicle?: Json | null
@@ -433,12 +442,14 @@ export type Database = {
       }
       rentals: {
         Row: {
+          cancelled_at: string | null
           client_id: string
           created_at: string
           end_date: string
           id: string
           paid: boolean
           product_id: string
+          quantity: number
           start_date: string
           status: string
           total: number
@@ -446,12 +457,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          cancelled_at?: string | null
           client_id: string
           created_at?: string
           end_date: string
           id?: string
           paid?: boolean
           product_id: string
+          quantity?: number
           start_date: string
           status: string
           total?: number
@@ -459,12 +472,14 @@ export type Database = {
           user_id?: string
         }
         Update: {
+          cancelled_at?: string | null
           client_id?: string
           created_at?: string
           end_date?: string
           id?: string
           paid?: boolean
           product_id?: string
+          quantity?: number
           start_date?: string
           status?: string
           total?: number
