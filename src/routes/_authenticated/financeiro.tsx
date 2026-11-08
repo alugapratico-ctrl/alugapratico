@@ -57,8 +57,8 @@ function Financeiro() {
                 <p className="text-base font-bold text-foreground">{products.find((p) => p.id === r.productId)?.name}</p>
                 <p className="text-sm text-muted-foreground">{clients.find((c) => c.id === r.clientId)?.name} · {fmtDate(r.start)}</p>
               </div>
-              <StatusPill label={r.paid ? "Recebido" : "Pendente"} className={r.paid ? "bg-success-soft text-success" : "bg-warning-soft text-warning"} />
-              <p className="w-32 text-right text-lg font-extrabold text-foreground">{brl(r.total)}</p>
+              <StatusPill label={r.paid ? "Recebido" : r.status === "cancelada" ? "Cancelada" : "Pendente"} className={r.paid ? "bg-success-soft text-success" : r.status === "cancelada" ? "bg-muted text-muted-foreground" : "bg-warning-soft text-warning"} />
+              <p className="ml-auto text-right text-lg font-extrabold text-foreground">{brl(r.total)}</p>
             </li>
           ))}
         </ul>
