@@ -74,8 +74,8 @@ describe("mensagens de erro", () => {
   it("avisa quando está sem internet", () => {
     expect(authErrorMessage({ message: "Failed to fetch" })).toBe("Sem conexão com a internet. Verifique sua conexão e tente novamente.");
   });
-  it("explica quando a senha já vazou na internet", () => {
-    expect(authErrorMessage({ code: "weak_password", message: "Password is known to be weak and easy to guess, please choose a different one." })).toBe("Essa senha já apareceu em vazamentos de dados na internet. Por segurança, escolha outra senha.");
+  it("não mostra mais aviso de senha vazada", () => {
+    expect(authErrorMessage({ code: "weak_password", reasons: ["pwned"], message: "Password is known to be weak" } as never)).not.toContain("vazamentos");
   });
   it("avisa sobre e-mail já cadastrado", () => {
     expect(authErrorMessage({ code: "user_already_exists" })).toBe("Este e-mail já tem uma conta. Entre com ele ou recupere sua senha.");
