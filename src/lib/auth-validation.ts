@@ -87,9 +87,6 @@ export function authErrorMessage(error: unknown, online = true): string {
     return "Você ainda não confirmou seu e-mail. Abra a mensagem que enviamos e toque no link de confirmação.";
   if (code === "user_already_exists" || code === "email_exists" || msg.includes("already registered"))
     return "Este e-mail já tem uma conta. Entre com ele ou recupere sua senha.";
-  const reasons = (error as { reasons?: string[] } | null)?.reasons ?? [];
-  if (reasons.includes("pwned") || msg.includes("known to be weak"))
-    return "Essa senha já apareceu em vazamentos de dados na internet. Por segurança, escolha outra senha.";
   if (code === "weak_password" || msg.includes("password should"))
     return "Essa senha é fraca. Use pelo menos 8 caracteres, com letras e números.";
   if (code === "same_password") return "A nova senha precisa ser diferente da senha atual.";
